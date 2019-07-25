@@ -11,8 +11,10 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
 
-#define totalLevels 30
+#define totalLevels 28
 #define buzzer 3
+
+#define endgame 660
 
 #include <SPI.h>
 #include <Wire.h>
@@ -26,34 +28,12 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 int simonSaid[totalLevels];
 int tones[4] = {950, 850, 750, 650};
+int tspeed[4] = {500, 400, 300, 200};
+int tsilence[4] = {200, 150, 100, 80};
 
-void setconfig(){
-  pinMode(led7, OUTPUT);
-  pinMode(led6, OUTPUT);
-  pinMode(led5, OUTPUT);
-  pinMode(led8, OUTPUT);
-
-  digitalWrite(led7, LOW);
-  digitalWrite(led6, LOW);
-  digitalWrite(led5, LOW);
-  digitalWrite(led8, LOW);
-
-  pinMode(button7, INPUT_PULLUP);
-  pinMode(button6, INPUT_PULLUP);
-  pinMode(button5, INPUT_PULLUP);
-  pinMode(button8, INPUT_PULLUP);
-}
-
-void sort(){
-
-  randomSeed(analogRead(0));
-
-  for (int i = 0; i <= totalLevels; i++) {
-      simonSaid[i] = random(5, 9);
-      Serial.print(String(simonSaid[i]) + ", ");
-  }
-  Serial.println("");  
-}
+int option;
+bool gameOver = 0;
+int buttonPressed = 0;
 
 void displayShow(String text, int tsize){
   display.clearDisplay();
@@ -76,62 +56,90 @@ void displayShow(String text, String text2, int tsize){
 
 void setup() {
   Serial.begin(9600);
-  setconfig();
-  sort();
   
-  // Address 0x3C for 128x32
+  //Config
+  pinMode(led7, OUTPUT);
+  pinMode(led6, OUTPUT);
+  pinMode(led5, OUTPUT);
+  pinMode(led8, OUTPUT);
+
+  digitalWrite(led7, LOW);
+  digitalWrite(led6, LOW);
+  digitalWrite(led5, LOW);
+  digitalWrite(led8, LOW);
+
+  pinMode(button7, INPUT_PULLUP);
+  pinMode(button6, INPUT_PULLUP);
+  pinMode(button5, INPUT_PULLUP);
+  pinMode(button8, INPUT_PULLUP);
+
+  //Sort
+  randomSeed(analogRead(0));
+
+  for (int i = 0; i <= totalLevels; i++) {
+      simonSaid[i] = random(5, 9);
+      Serial.print(String(simonSaid[i]) + ", ");
+  }
+    
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
-    Serial.println(F("Falha no Display"));
+    Serial.println(("Falha no Display"));
     for(;;);
   }
-
+  Serial.println("display genius");
   displayShow("GENIUS", 3);
   delay(2000);
+
+  menuDificuldade();
 }
 
 void loop() {
 
-  bool gameOver = 0;
+  gameOver = 0;  
     
   while (!gameOver) {
 
     for (int i = 1; i < totalLevels; i++) {
-
+      
       displayShow("Nivel " + String(i), (i < 10? 3: 2));
       delay(1400);
 
       playLevel(i);
-
-      for (int g = 0; g < i; g++) {
-
-        int buttonPressed = readBtn();
-
-        Serial.println("button pressed = " + String(buttonPressed));
-    
-        playBuzzer(buttonPressed, 300);
-
-        Serial.println("gabarito = " + String(simonSaid[g]));
-        Serial.println("result = " + String(!buttonPressed == (simonSaid[g])));
-        
-        if (!(buttonPressed == simonSaid[g])) {
-          displayShow("GAME OVER", "Total: " + String(i-1), 2);
-          playGameOver();
-          if (i > 10){
-            displayShow("Brocou!", 3);
-            delay(2000);
+     
+        for (int g = 0; g < i; g++) {
+  
+          buttonPressed = readBtn();
+  
+          playBuzzer(buttonPressed, tspeed[option]);
+  
+          //Manter 100 mseconds 
+          switch(option){
+            case 2: delay(20); break;
+            case 3: delay(40); break;
           }
-          gameOver = 1;
-          break;
-        }
-      }
+            
+          if (!(buttonPressed == simonSaid[g])) {
 
+              displayShow("GAME OVER", "Total: " + String(i-1), 2);
+
+              playGameOver();
+              
+              if (i > 10){
+                displayShow("Brocou!", 3);
+                delay(2000);
+              }
+
+              gameOver = 1;
+
+              break;              
+          }
+        }   
       if (gameOver) break;
     }
   }
 }
 
 int readBtn(){
-    int buttonPressed = 0;
+    buttonPressed = 0;
 
     while (!buttonPressed) {
       if (!digitalRead(button8)){
@@ -153,18 +161,29 @@ int readBtn(){
 
 void playLevel(int i){
     for (int g = 0; g < i; g++) {
-      playBuzzer(simonSaid[g], 300);
-      delay(100); // pausa entre uma luz e outra
+      playBuzzer(simonSaid[g], tspeed[option]);
+      delay(tsilence[option]); // pausa entre uma luz e outra
     }
 }
 
-void softReset() {
-  asm volatile ("  jmp 0");
+void menuDificuldade(){
+  displayShow("Grau?", 3);
+
+  option = readBtn() - 5;
+
+  switch(option){
+    case 0: displayShow("Facil", 3); Serial.println("Facil"); break;
+    case 1: displayShow("Normal", 3); Serial.println("Normal"); break;
+    case 2: displayShow("Dificil", 3); Serial.println("Dificil"); break;
+    case 3: displayShow("Insano", 3); Serial.println("Insano"); break;
+  }
+
+  playBuzzer(buttonPressed, 300);
+  
+  delay(1700);
 }
 
 void playGameOver(){
-
-    int endgame = 660;
 
     tone(buzzer, endgame);
     digitalWrite(led7, HIGH);
