@@ -16,10 +16,23 @@
 
 #define endgame 660
 
+#define BUFSIZE 10
+
 #include <SPI.h>
 #include <Wire.h>
+#include <EEPROM.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
+#define NOTE_C7  2093
+#define NOTE_E7  2637
+#define NOTE_G7  3136
+#define NOTE_G6  1568
+
+//Mario main theme melody
+int melody[] = {NOTE_E7, NOTE_E7, 0, NOTE_E7, 0, NOTE_C7, NOTE_E7, 0, NOTE_G7, 0, 0,  0, NOTE_G6, 0, 0, 0};
+//Mario main them tempo
+int tempo[] = { 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12};
 
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -34,6 +47,8 @@ int tsilence[4] = {200, 150, 100, 80};
 int option;
 bool gameOver = 0;
 int buttonPressed = 0;
+
+char buf[BUFSIZE];
 
 void displayShow(String text, int tsize){
   display.clearDisplay();
@@ -58,6 +73,8 @@ void setup() {
   Serial.begin(9600);
   
   //Config
+  pinMode(buzzer, OUTPUT);
+    
   pinMode(led7, OUTPUT);
   pinMode(led6, OUTPUT);
   pinMode(led5, OUTPUT);
@@ -72,30 +89,37 @@ void setup() {
   pinMode(button6, INPUT_PULLUP);
   pinMode(button5, INPUT_PULLUP);
   pinMode(button8, INPUT_PULLUP);
-
-  //Sort
-  randomSeed(analogRead(0));
-
-  for (int i = 0; i <= totalLevels; i++) {
-      simonSaid[i] = random(5, 9);
-      Serial.print(String(simonSaid[i]) + ", ");
-  }
-    
+   
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
     Serial.println(("Falha no Display"));
     for(;;);
   }
   Serial.println("display genius");
   displayShow("GENIUS", 3);
+  sing();
+
+  eeprom_read_string(0, buf, BUFSIZE);
+  Serial.println(buf);
+  
+  displayShow(buf, 2);
   delay(2000);
 
   menuDificuldade();
 }
 
-void loop() {
+void sort(){
+  randomSeed(analogRead(0));
 
+  for (int i = 0; i <= totalLevels; i++) {
+      simonSaid[i] = random(5, 9);
+      Serial.print(String(simonSaid[i]) + ", ");
+  }
+}
+
+void loop() {
+  sort();
   gameOver = 0;  
-    
+   
   while (!gameOver) {
 
     for (int i = 1; i < totalLevels; i++) {
@@ -122,6 +146,10 @@ void loop() {
               displayShow("GAME OVER", "Total: " + String(i-1), 2);
 
               playGameOver();
+              
+              String myString = "Record: " + String(i-1);
+              myString.toCharArray(buf, BUFSIZE); 
+              eeprom_write_string(0, buf); 
               
               if (i > 10){
                 displayShow("Brocou!", 3);
@@ -177,9 +205,7 @@ void menuDificuldade(){
     case 2: displayShow("Dificil", 3); Serial.println("Dificil"); break;
     case 3: displayShow("Insano", 3); Serial.println("Insano"); break;
   }
-
-  playBuzzer(buttonPressed, 300);
-  
+  fireLights();
   delay(1700);
 }
 
@@ -211,6 +237,26 @@ void playGameOver(){
    // softReset();
 }
 
+void fireLights(){
+  
+    digitalWrite(led5, HIGH);
+    delay(50);
+    digitalWrite(led5, LOW);
+
+    digitalWrite(led6, HIGH);
+    delay(50);
+    digitalWrite(led6, LOW);
+
+    digitalWrite(led7, HIGH);
+    delay(50);
+    digitalWrite(led7, LOW);
+
+    digitalWrite(led8, HIGH);
+    delay(50);
+    digitalWrite(led8, LOW);
+    
+}
+
 void playBuzzer(int button, int mseconds) {
   
   digitalWrite(button, HIGH);
@@ -221,4 +267,95 @@ void playBuzzer(int button, int mseconds) {
   digitalWrite(button, LOW);
 
   noTone(buzzer);
+}
+
+
+const int EEPROM_MIN_ADDR = 0;
+const int EEPROM_MAX_ADDR = 511;
+
+boolean eeprom_is_addr_ok(int addr) {
+  return ((addr >= EEPROM_MIN_ADDR) && (addr <= EEPROM_MAX_ADDR));
+}
+
+boolean eeprom_write_bytes(int startAddr, const byte* array, int numBytes) {
+  int i;
+  if (!eeprom_is_addr_ok(startAddr) || !eeprom_is_addr_ok(startAddr + numBytes)) {
+    return false;
+  }
+  for (i = 0; i < numBytes; i++) {
+    EEPROM.write(startAddr + i, array[i]);
+  }
+  return true;
+}
+
+boolean eeprom_write_string(int addr, const char* string) {
+  int numBytes; 
+  numBytes = strlen(string) + 1;
+  return eeprom_write_bytes(addr, (const byte*)string, numBytes);
+}
+
+boolean eeprom_read_string(int addr, char* buffer, int bufSize) {
+  byte ch;
+  int bytesRead; 
+  if (!eeprom_is_addr_ok(addr)) {
+    return false;
+  }
+
+  if (bufSize == 0) { 
+    return false;
+  }
+
+  if (bufSize == 1) {
+    buffer[0] = 0;
+    return true;
+  }
+  
+  bytesRead = 0;
+  ch = EEPROM.read(addr + bytesRead); 
+  buffer[bytesRead] = ch;
+  bytesRead++;
+  
+  while ( (ch != 0x00) && (bytesRead < bufSize) && ((addr + bytesRead) <= EEPROM_MAX_ADDR) ) {
+  
+    ch = EEPROM.read(addr + bytesRead);
+    buffer[bytesRead] = ch; 
+    bytesRead++;
+  }
+  
+  
+  if ((ch != 0x00) && (bytesRead >= 1)) {
+    buffer[bytesRead - 1] = 0;
+  }
+  
+  return true;
+}
+
+
+void sing() {
+    for (int thisNote = 0; thisNote < 16; thisNote++) {
+      int noteDuration = 1000 / tempo[thisNote];
+      buzz(buzzer, melody[thisNote], noteDuration);
+      int pauseBetweenNotes = noteDuration * 1.30;
+      delay(pauseBetweenNotes);
+      buzz(buzzer, 0, noteDuration);
+    }
+}
+
+
+void buzz(int targetPin, long frequency, long length) {
+  //digitalWrite(13, HIGH);
+  long delayValue = 1000000 / frequency / 2; // calculate the delay value between transitions
+  //// 1 second's worth of microseconds, divided by the frequency, then split in half since
+  //// there are two phases to each cycle
+  long numCycles = frequency * length / 1000; // calculate the number of cycles for proper timing
+  //// multiply frequency, which is really cycles per second, by the number of seconds to
+  //// get the total number of cycles to produce
+  for (long i = 0; i < numCycles; i++) { // for the calculated length of time...
+    digitalWrite(targetPin, HIGH); // write the buzzer pin high to push out the diaphram
+    delayMicroseconds(delayValue); // wait for the calculated delay value
+    digitalWrite(targetPin, LOW); // write the buzzer pin low to pull back the diaphram
+    delayMicroseconds(delayValue); // wait again or the calculated delay value
+  }
+  //digitalWrite(13, LOW);
+
 }
