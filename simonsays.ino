@@ -1,12 +1,12 @@
-#define led5 5      //red button led
-#define led6 6      //green button led
+#define led5 5      //green button led
+#define led6 6      //blue button led
 #define led7 7      //yellow button led
-#define led8 8      //blue button led
+#define led8 8      //red button led
 
-#define button5  9  //red button
-#define button6  10 //green button
+#define button5  9  //green button
+#define button6  10 //blue button
 #define button7  11 //yellow button
-#define button8  12 //blue button
+#define button8  12 //red button
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
@@ -23,16 +23,6 @@
 #include <EEPROM.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
-#define NOTE_C7  2093
-#define NOTE_E7  2637
-#define NOTE_G7  3136
-#define NOTE_G6  1568
-
-//Mario main theme melody
-int melody[] = {NOTE_E7, NOTE_E7, 0, NOTE_E7, 0, NOTE_C7, NOTE_E7, 0, NOTE_G7, 0, 0,  0, NOTE_G6, 0, 0, 0};
-//Mario main them tempo
-int tempo[] = { 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12};
 
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -73,8 +63,6 @@ void setup() {
   Serial.begin(9600);
   
   //Config
-  pinMode(buzzer, OUTPUT);
-    
   pinMode(led7, OUTPUT);
   pinMode(led6, OUTPUT);
   pinMode(led5, OUTPUT);
@@ -96,14 +84,14 @@ void setup() {
   }
   Serial.println("display genius");
   displayShow("GENIUS", 3);
-  sing();
+  delay(2000);
 
   eeprom_read_string(0, buf, BUFSIZE);
   Serial.println(buf);
   
   displayShow(buf, 2);
   delay(2000);
-
+  
   menuDificuldade();
 }
 
@@ -119,7 +107,7 @@ void sort(){
 void loop() {
   sort();
   gameOver = 0;  
-   
+    
   while (!gameOver) {
 
     for (int i = 1; i < totalLevels; i++) {
@@ -205,7 +193,9 @@ void menuDificuldade(){
     case 2: displayShow("Dificil", 3); Serial.println("Dificil"); break;
     case 3: displayShow("Insano", 3); Serial.println("Insano"); break;
   }
-  fireLights();
+
+  playBuzzer(buttonPressed, 300);
+  
   delay(1700);
 }
 
@@ -237,26 +227,6 @@ void playGameOver(){
    // softReset();
 }
 
-void fireLights(){
-  
-    digitalWrite(led5, HIGH);
-    delay(50);
-    digitalWrite(led5, LOW);
-
-    digitalWrite(led6, HIGH);
-    delay(50);
-    digitalWrite(led6, LOW);
-
-    digitalWrite(led7, HIGH);
-    delay(50);
-    digitalWrite(led7, LOW);
-
-    digitalWrite(led8, HIGH);
-    delay(50);
-    digitalWrite(led8, LOW);
-    
-}
-
 void playBuzzer(int button, int mseconds) {
   
   digitalWrite(button, HIGH);
@@ -268,6 +238,7 @@ void playBuzzer(int button, int mseconds) {
 
   noTone(buzzer);
 }
+
 
 
 const int EEPROM_MIN_ADDR = 0;
@@ -328,34 +299,4 @@ boolean eeprom_read_string(int addr, char* buffer, int bufSize) {
   }
   
   return true;
-}
-
-
-void sing() {
-    for (int thisNote = 0; thisNote < 16; thisNote++) {
-      int noteDuration = 1000 / tempo[thisNote];
-      buzz(buzzer, melody[thisNote], noteDuration);
-      int pauseBetweenNotes = noteDuration * 1.30;
-      delay(pauseBetweenNotes);
-      buzz(buzzer, 0, noteDuration);
-    }
-}
-
-
-void buzz(int targetPin, long frequency, long length) {
-  //digitalWrite(13, HIGH);
-  long delayValue = 1000000 / frequency / 2; // calculate the delay value between transitions
-  //// 1 second's worth of microseconds, divided by the frequency, then split in half since
-  //// there are two phases to each cycle
-  long numCycles = frequency * length / 1000; // calculate the number of cycles for proper timing
-  //// multiply frequency, which is really cycles per second, by the number of seconds to
-  //// get the total number of cycles to produce
-  for (long i = 0; i < numCycles; i++) { // for the calculated length of time...
-    digitalWrite(targetPin, HIGH); // write the buzzer pin high to push out the diaphram
-    delayMicroseconds(delayValue); // wait for the calculated delay value
-    digitalWrite(targetPin, LOW); // write the buzzer pin low to pull back the diaphram
-    delayMicroseconds(delayValue); // wait again or the calculated delay value
-  }
-  //digitalWrite(13, LOW);
-
 }
