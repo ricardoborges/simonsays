@@ -24,21 +24,33 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+#define NOTE_C7  2093
+#define NOTE_E7  2637
+#define NOTE_G7  3136
+#define NOTE_G6  1568
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET     4 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+int option = 2;
+bool gameOver = 0;
+int buttonPressed = 0;
+int record = 0;
+
+char buf[BUFSIZE];
 
 int simonSaid[totalLevels];
 int tones[4] = {950, 850, 750, 650};
 int tspeed[4] = {500, 400, 300, 200};
 int tsilence[4] = {200, 150, 100, 80};
 
-int option;
-bool gameOver = 0;
-int buttonPressed = 0;
 
-char buf[BUFSIZE];
+//Mario main theme melody
+int melody[16] = {NOTE_E7, NOTE_E7, 0, NOTE_E7, 0, NOTE_C7, NOTE_E7, 0, NOTE_G7, 0, 0,  0, NOTE_G6, 0, 0, 0};
+//Mario main them tempo
+int tempo[16] = { 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12};
+
 
 void displayShow(String text, int tsize){
   display.clearDisplay();
@@ -87,9 +99,14 @@ void setup() {
   delay(2000);
 
   eeprom_read_string(0, buf, BUFSIZE);
-  Serial.println(buf);
-  
+  String strrecord = String(buf);
+  Serial.println(strrecord);
   displayShow(buf, 2);
+
+  record = (String(strrecord[8]) + String(strrecord[9])).toInt();
+
+  Serial.println(record);
+  
   delay(2000);
   
   menuDificuldade();
@@ -120,7 +137,7 @@ void loop() {
         for (int g = 0; g < i; g++) {
   
           buttonPressed = readBtn();
-  
+
           playBuzzer(buttonPressed, tspeed[option]);
   
           //Manter 100 mseconds 
@@ -130,18 +147,22 @@ void loop() {
           }
             
           if (!(buttonPressed == simonSaid[g])) {
-
-              displayShow("GAME OVER", "Total: " + String(i-1), 2);
+              int total = i-1;
+              displayShow("GAME OVER", "Total: " + String(total), 2);
 
               playGameOver();
               
-              String myString = "Record: " + String(i-1);
-              myString.toCharArray(buf, BUFSIZE); 
-              eeprom_write_string(0, buf); 
-              
-              if (i > 10){
+              if (total >= 10){
                 displayShow("Brocou!", 3);
                 delay(2000);
+              }
+
+              if (total > record){
+                displayShow("Novo ", "Record! " + String(total), 2);
+                delay(2000);
+                String myString = "Record: " + String(total);
+                myString.toCharArray(buf, BUFSIZE); 
+                eeprom_write_string(0, buf); 
               }
 
               gameOver = 1;
@@ -177,6 +198,12 @@ int readBtn(){
 
 void playLevel(int i){
     for (int g = 0; g < i; g++) {
+
+      Serial.println("");
+      Serial.println("said = " + String(simonSaid[g]));
+      Serial.println("option = " + String(option));
+      Serial.println("tspeed = " + String(tspeed[option]));
+      
       playBuzzer(simonSaid[g], tspeed[option]);
       delay(tsilence[option]); // pausa entre uma luz e outra
     }
@@ -186,6 +213,9 @@ void menuDificuldade(){
   displayShow("Grau?", 3);
 
   option = readBtn() - 5;
+
+  Serial.println("");
+  Serial.println("option = " + String(option));
 
   switch(option){
     case 0: displayShow("Facil", 3); Serial.println("Facil"); break;
@@ -228,7 +258,8 @@ void playGameOver(){
 }
 
 void playBuzzer(int button, int mseconds) {
-  
+  Serial.println("button = " + String(button));
+  Serial.println("seconds= " + String(mseconds));
   digitalWrite(button, HIGH);
 
   tone(buzzer, tones[button - 5]);
